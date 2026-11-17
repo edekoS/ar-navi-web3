@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indoor AR Guide v4.0 - Live Remix Web3 Integration</title>
+    <!-- Biblioteka Ethers.js do bezpośredniej komunikacji ze Smart Kontraktem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+    <style>
+        /* Resetowanie domyślnych stylów */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            gap: 24px;
+            padding: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Kontener symulujący ekran smartfona */
+        .phone {
+            width: 360px;
+            height: 730px;
+            background: #161b22;
+            border: 4px solid #30363d;
+            border-radius: 36px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+            position: relative;
+        }
+
+        .notch {
+            width: 120px;
+            height: 18px;
+            background: #0d1117;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #21262d;
+            padding: 12px 15px;
+            border-radius: 16px;
+            margin-top: 10px;
+            border: 1px solid #30363d;
+        }
+        .badge {
+            background: rgba(46, 160, 67, 0.2);
+            color: #3fb950;
+            border: 1px solid #2ea043;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        select {
+            width: 100%;
+            background: #21262d;
+            color: #fff;
+            border: 1px solid #30363d;
+            padding: 10px;
+            border-radius: 12px;
+            margin-top: 10px;
+            font-size: 14px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Widok kamery i nakładki AR */
+        .camera-view {
+            flex-grow: 1;
+            margin: 12px 0;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            border-radius: 22px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px;
+            border: 1px solid #30363d;
+            overflow: hidden;
+        }
+
+        #webcam {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            opacity: 0.85;
+        }
+
+        .ar-grid {
+            position: absolute;
+            inset: 0;
+            background-image: linear-gradient(rgba(0, 229, 255, 0.1) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 229, 255, 0.1) 1px, transparent 1px);
+            background-size: 24px 24px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .ar-hud-top {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 5px 10px;
+            border-radius: 10px;
+            z-index: 3;
+        }
+
+        .arrow-box {
+            text-align: center;
+            z-index: 3;
+            background: rgba(13, 17, 23, 0.55);
+            padding: 10px 18px;
+            border-radius: 18px;
+            border: 1px solid rgba(0, 229, 255, 0.25);
+        }
+        .arrow {
+            font-size: 62px;
+            color: #00e5ff;
+            text-shadow: 0 0 25px rgba(0, 229, 255, 0.9);
+            transition: transform 0.4s ease;
+            display: inline-block;
+        }
+        .instruction {
+            margin-top: 4px;
+            font-weight: 600;
+            font-size: 13px;
+            color: #fff;
+        }
+        .distance-tag {
+            font-size: 11px;
+            color: #3fb950;
+            margin-top: 2px;
+        }
+
+        .progress-container {
+            width: 100%;
+            background: rgba(13, 17, 23, 0.85);
+            padding: 6px 10px;
+            border-radius: 10px;
+            z-index: 3;
+            border: 1px solid #30363d;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #8b949e;
+            margin-bottom: 4px;
+        }
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: #21262d;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 35%;
+            background: linear-gradient(90deg, #00e5ff, #3fb950);
+            transition: width 0.3s ease;
+        }
+
+        .minimap {
+            width: 100%;
+            height: 100px;
+            background: rgba(13, 17, 23, 0.9);
+            border: 1px solid #30363d;
+            border-radius: 14px;
+            padding: 8px;
+            z-index: 3;
+        }
+        .minimap-title {
+            font-size: 10px;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+        svg { width: 100%; height: 70px; }
+
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+        button {
+            background: linear-gradient(135deg, #6e40c9 0%, #8957e5 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        .btn-secondary {
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 9px;
+            font-size: 11px;
+            color: #58a6ff;
+        }
+        .wallet {
+            font-size: 11px;
+            color: #8b949e;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        /* Prawy panel: Monitor sieci DePIN i integracja z Remix IDE */
+        .dashboard {
+            width: 460px;
+            height: 730px;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 24px;
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .dash-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .dash-title { font-size: 18px; font-weight: bold; color: #fff; }
+        .dash-sub { font-size: 12px; color: #8b949e; margin-top: 2px; }
+        .network-pill {
+            background: rgba(56, 139, 253, 0.15);
+            color: #58a6ff;
+            border: 1px solid rgba(56, 139, 253, 0.4);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Panel połączenia z kontraktem Remix / MetaMask */
+        .contract-box {
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 12px;
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .contract-row {
+            display: flex;
+            gap: 8px;
+        }
+        input {
+            flex-grow: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #e6edf3;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-family: monospace;
+            outline: none;
+        }
+        .btn-connect {
+            width: auto;
+            padding: 8px 12px;
+            font-size: 12px;
+            background: #238636;
+            border-radius: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .stat-card {
+            background: #21262d;
+            border: 1px solid #30363d;
+            padding: 12px;
+            border-radius: 14px;
+        }
+        .stat-label { font-size: 11px; color: #8b949e; }
+        .stat-val { font-size: 19px; font-weight: bold; color: #58a6ff; margin-top: 4px; }
+
+        .log-box {
+            flex-grow: 1;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 14px;
+            padding: 14px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+        }
+        .log-header {
+            color: #8b949e;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #21262d;
+            padding-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .tx-item {
+            background: #161b22;
+            border-left: 3px solid #3fb950;
+            padding: 9px 11px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+        .tx-hash { color: #58a6ff; font-size: 11px; }
+        .tx-meta { color: #e6edf3; margin-top: 3px; }
+        .tx-ipfs { color: #8b949e; font-size: 10px; margin-top: 2px; }
+    </style>
+</head>
+<body>
+
+<!-- LEWY PANEL: Aplikacja mobilna AR -->
+<div class="phone">
+    <div class="notch"></div>
+    <div>
+        <div class="header">
+            <span><b>AR Navi Web3</b></span>
+            <span class="badge" id="balance">0 IMT</span>
+        </div>
+        <select id="dest-select" onchange="changeDestination()">
+            <option value="204">Cel: Dziekanat (Pokój 204)</option>
+            <option value="101">Cel: Aula Wykładowa (Sala 101)</option>
+            <option value="305">Cel: Laboratorium VR/AR (Pokój 305)</option>
+        </select>
+    </div>
+
+    <div class="camera-view">
+        <video id="webcam" autoplay playsinline muted></video>
+        <div class="ar-grid"></div>
+
+        <div class="ar-hud-top">
+            <span id="cam-badge">VPS: Tryb symulacji</span>
+            <span>Węzły 3D: <b id="points">1,420</b></span>
+        </div>
+
+        <div class="arrow-box">
+            <div class="arrow" id="ar-arrow">⬆</div>
+            <div class="instruction" id="ar-text">Prosto 15m, potem w lewo</div>
+            <div class="distance-tag" id="dist-tag">Pozostało: 18 m</div>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-label">
+                <span>Postęp skanowania chmury punktów</span>
+                <span id="scan-pct">35%</span>
+            </div>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" id="scan-fill"></div>
+            </div>
+        </div>
+
+        <div class="minimap">
+            <div class="minimap-title">Mapa przestrzenna piętra (IPFS / VPS)</div>
+            <svg viewBox="0 0 260 70">
+                <rect x="10" y="25" width="240" height="20" fill="#21262d" rx="4"/>
+                <rect x="115" y="5" width="20" height="60" fill="#21262d" rx="4"/>
+                <path id="route-path" d="M 30 35 L 125 35 L 125 12" stroke="#00e5ff" stroke-width="3" fill="none" stroke-dasharray="4"/>
+                <circle id="user-dot" cx="30" cy="35" r="5" fill="#3fb950"/>
+                <text x="18" y="56" fill="#8b949e" font-size="8">Start</text>
+                <circle id="dest-dot" cx="125" cy="12" r="5" fill="#f85149"/>
+                <text id="dest-label" x="135" y="15" fill="#fff" font-size="8">Pokój 204</text>
+            </svg>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <div class="btn-row">
+            <button class="btn-secondary" onclick="startCamera()">📷 Kamera AR</button>
+            <button class="btn-secondary" onclick="simulateStep()">👣 Symuluj krok (+25%)</button>
+        </div>
+        <button onclick="claimReward()">Zakończ trasę i odbierz tokeny (+10 IMT)</button>
+        <div class="wallet" id="wallet-label">Portfel: Tryb lokalny (Symulacja Web3)</div>
+    </div>
+</div>
+
+<!-- PRAWY PANEL: Monitor sieci DePIN i integracja z Remix IDE -->
+<div class="dashboard">
+    <div class="dash-header">
+        <div>
+            <div class="dash-title">DePIN & Smart Contract Monitor</div>
+            <div class="dash-sub">Integracja z kontraktem wdrożonym w Remix IDE</div>
+        </div>
+        <span class="network-pill" id="net-status">Remix / Testnet</span>
+    </div>
+
+    <!-- Pole wklejenia adresu kontraktu z Remix IDE -->
+    <div class="contract-box">
+        <div class="stat-label">Adres Smart Kontraktu (skopiowany z Remix IDE):</div>
+        <div class="contract-row">
+            <input type="text" id="contract-addr" placeholder="0xd9145CCE52D386f254917e481eB44e9943F39138" />
+            <button class="btn-connect" onclick="connectWeb3()">Połącz Web3</button>
+        </div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Zmapowane pomieszczenia</div>
+            <div class="stat-val" id="mapped-count">12 / 40</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Wypłacone nagrody (IMT)</div>
+            <div class="stat-val" id="total-paid">120 IMT</div>
+        </div>
+    </div>
+
+    <div class="log-box" id="tx-log">
+        <div class="log-header">
+            <span>Transakcje kontraktu (MapToken.sol)</span>
+            <span>Status: Online</span>
+        </div>
+        <div class="tx-item">
+            <div class="tx-hash">Tx: 0x254a9f...53295 | Blok: #6849102 ✓</div>
+            <div class="tx-meta">Nagroda: +10 IMT | Cel: Sala 104 | Węzły VPS: +340</div>
+            <div class="tx-ipfs">IPFS CID: QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let tokens = 0;
+    let mapped = 12;
+    let totalPaid = 120;
+    let scanProgress = 35;
+    let remainingDist = 18;
+    let userAddress = null;
+    let contractInstance = null;
+
+    // Minimalny interfejs ABI kontraktu MapToken.sol z Remix IDE
+    const contractABI = [
+        "function rewardForScanning(address _user, string memory _roomName) public",
+        "function getBalance(address _user) public view returns (uint256)"
+    ];
+
+    const routes = {
+        "204": { text: "Prosto 15m, potem w lewo", dist: 18, rot: "0deg", path: "M 30 35 L 125 35 L 125 12", cx: 125, cy: 12, label: "Pokój 204" },
+        "101": { text: "Prosto korytarzem 30m", dist: 30, rot: "0deg", path: "M 30 35 L 230 35", cx: 230, cy: 35, label: "Sala 101" },
+        "305": { text: "Skręć w prawo przy windzie", dist: 24, rot: "45deg", path: "M 30 35 L 125 35 L 125 58", cx: 125, cy: 58, label: "Pokój 305" }
+    };
+
+    // Połączenie przeglądarki z portfelem MetaMask i kontraktem z Remix IDE
+    async function connectWeb3() {
+        const addr = document.getElementById('contract-addr').value.trim();
+        if (!addr) {
+            alert("Wklej najpierw adres kontraktu z zakładki 'Deployed Contracts' w Remix IDE!");
+            return;
+        }
+        if (typeof window.ethereum !== 'undefined') {
+            try {
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+                userAddress = await signer.getAddress();
+                contractInstance = new ethers.Contract(addr, contractABI, signer);
+
+                document.getElementById('wallet-label').innerText = "Portfel: " + userAddress.slice(0,6) + "..." + userAddress.slice(-4);
+                document.getElementById('net-status').innerText = "Web3 Połączono ✓";
+                document.getElementById('net-status').style.color = "#3fb950";
+                alert("Połączono z portfelem i kontraktem MapToken!");
+            } catch (err) {
+                alert("Błąd połączenia z MetaMask: " + err.message);
+            }
+        } else {
+            // Jeśli brak wtyczki MetaMask, aktywuje tryb powiązany z adresem z Remix
+            document.getElementById('wallet-label').innerText = "Kontrakt: " + addr.slice(0,6) + "..." + addr.slice(-4);
+            document.getElementById('net-status').innerText = "Remix Powiązany ✓";
+            document.getElementById('net-status').style.color = "#3fb950";
+        }
+    }
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            document.getElementById('webcam').srcObject = stream;
+            document.getElementById('cam-badge').innerText = "VPS: Kamera LIVE ✓";
+            document.getElementById('cam-badge').style.color = "#3fb950";
+        } catch (err) {
+            alert("Dostęp do kamery wymaga protokołu HTTPS.");
+        }
+    }
+
+    function changeDestination() {
+        const val = document.getElementById('dest-select').value;
+        const r = routes[val];
+        remainingDist = r.dist;
+        scanProgress = 25;
+
+        document.getElementById('ar-text').innerText = r.text;
+        document.getElementById('dist-tag').innerText = `Pozostało: ${remainingDist} m`;
+        document.getElementById('ar-arrow').style.transform = `rotate(${r.rot})`;
+        document.getElementById('route-path').setAttribute('d', r.path);
+        document.getElementById('dest-dot').setAttribute('cx', r.cx);
+        document.getElementById('dest-dot').setAttribute('cy', r.cy);
+        document.getElementById('dest-label').setAttribute('x', r.cx - 15);
+        document.getElementById('dest-label').setAttribute('y', r.cy - 8);
+        document.getElementById('dest-label').textContent = r.label;
+        document.getElementById('user-dot').setAttribute('cx', 30);
+        updateProgressUI();
+    }
+
+    function simulateStep() {
+        if (scanProgress < 100) {
+            scanProgress = Math.min(100, scanProgress + 25);
+            remainingDist = Math.max(0, remainingDist - 5);
+            document.getElementById('dist-tag').innerText = remainingDist === 0 ? "Cel osiągnięty!" : `Pozostało: ${remainingDist} m`;
+            const currentX = parseInt(document.getElementById('user-dot').getAttribute('cx'));
+            if (currentX < 120) {
+                document.getElementById('user-dot').setAttribute('cx', currentX + 22);
+            }
+            updateProgressUI();
+        }
+    }
+
+    function updateProgressUI() {
+        document.getElementById('scan-pct').innerText = scanProgress + "%";
+        document.getElementById('scan-fill').style.width = scanProgress + "%";
+    }
+
+    // Wywołanie funkcji Smart Kontraktu po zakończeniu trasy
+    async function claimReward() {
+        const select = document.getElementById('dest-select');
+        const roomName = routes[select.value].label;
+
+        // Jeśli podłączono prawdziwy portfel MetaMask + kontrakt, wysyła realną transakcję
+        if (contractInstance && userAddress) {
+            try {
+                const tx = await contractInstance.rewardForScanning(userAddress, roomName);
+                await tx.wait();
+                addLogEntry(tx.hash.slice(0, 10) + "..." + tx.hash.slice(-5), roomName);
+            } catch (err) {
+                alert("Transakcja anulowana lub błąd sieci: " + err.message);
+                return;
+            }
+        } else {
+            // Tryb symulacji bez MetaMask
+            const randomHash = "0x" + Math.random().toString(16).substring(2, 8) + "..." + Math.random().toString(16).substring(2, 7);
+            addLogEntry(randomHash, roomName);
+        }
+
+        tokens += 10;
+        mapped += 1;
+        totalPaid += 10;
+        scanProgress = 100;
+        remainingDist = 0;
+        updateProgressUI();
+
+        document.getElementById('dist-tag').innerText = "Cel osiągnięty! Dane wysłane.";
+        document.getElementById('balance').innerText = tokens + " IMT";
+        document.getElementById('mapped-count').innerText = mapped + " / 40";
+        document.getElementById('total-paid').innerText = totalPaid + " IMT";
+        document.getElementById('points').innerText = (1420 + tokens * 45).toLocaleString();
+    }
+
+    function addLogEntry(txHash, roomName) {
+        const randomIpfs = "Qm" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const blockNum = 6849103 + mapped;
+        const logBox = document.getElementById('tx-log');
+        const newTx = document.createElement('div');
+        newTx.className = 'tx-item';
+        newTx.innerHTML = `<div class="tx-hash">Tx: ${txHash} | Blok: #${blockNum} ✓</div>
+                           <div class="tx-meta">Nagroda: +10 IMT | Cel: ${roomName} | Węzły VPS: +450</div>
+                           <div class="tx-ipfs">IPFS CID: ${randomIpfs}</div>`;
+        logBox.insertBefore(newTx, logBox.children[1]);
+    }
+</script>
+</body>
+</html>
