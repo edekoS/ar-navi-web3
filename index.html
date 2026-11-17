@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Indoor AR Guide v4.0 - Live Remix Web3 Integration</title>
-    <!-- Biblioteka Ethers.js do bezpośredniej komunikacji ze Smart Kontraktem -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+    <title>Indoor AR Guide v4.1 - Sepolia Web3 Integration</title>
+    <!-- Biblioteka Ethers.js v6 do komunikacji ze Smart Kontraktem -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"></script>
     <style>
         /* Resetowanie domyślnych stylów */
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -228,6 +228,7 @@
             transition: opacity 0.2s;
         }
         button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-secondary {
             background: #21262d;
             border: 1px solid #30363d;
@@ -242,7 +243,7 @@
             margin-top: 4px;
         }
 
-        /* Prawy panel: Monitor sieci DePIN i integracja z Remix IDE */
+        /* Prawy panel: Monitor sieci DePIN i integracja z Sepolia */
         .dashboard {
             width: 460px;
             height: 730px;
@@ -271,7 +272,7 @@
             font-weight: 600;
         }
 
-        /* Panel połączenia z kontraktem Remix / MetaMask */
+        /* Panel połączenia z kontraktem Sepolia / MetaMask */
         .contract-box {
             background: #21262d;
             border: 1px solid #30363d;
@@ -292,16 +293,17 @@
             color: #e6edf3;
             padding: 8px 10px;
             border-radius: 8px;
-            font-size: 12px;
+            font-size: 11px;
             font-family: monospace;
             outline: none;
         }
         .btn-connect {
             width: auto;
-            padding: 8px 12px;
+            padding: 8px 14px;
             font-size: 12px;
             background: #238636;
             border-radius: 8px;
+            white-space: nowrap;
         }
 
         .stats-grid {
@@ -344,6 +346,8 @@
             border-radius: 6px;
         }
         .tx-hash { color: #58a6ff; font-size: 11px; }
+        .tx-hash a { color: #58a6ff; text-decoration: none; }
+        .tx-hash a:hover { text-decoration: underline; }
         .tx-meta { color: #e6edf3; margin-top: 3px; }
         .tx-ipfs { color: #8b949e; font-size: 10px; margin-top: 2px; }
     </style>
@@ -409,26 +413,26 @@
             <button class="btn-secondary" onclick="startCamera()">📷 Kamera AR</button>
             <button class="btn-secondary" onclick="simulateStep()">👣 Symuluj krok (+25%)</button>
         </div>
-        <button onclick="claimReward()">Zakończ trasę i odbierz tokeny (+10 IMT)</button>
-        <div class="wallet" id="wallet-label">Portfel: Tryb lokalny (Symulacja Web3)</div>
+        <button id="claim-btn" onclick="claimReward()">Zakończ trasę i odbierz tokeny (+10 IMT)</button>
+        <div class="wallet" id="wallet-label">Portfel: Niepołączony (Kliknij Połącz Web3)</div>
     </div>
 </div>
 
-<!-- PRAWY PANEL: Monitor sieci DePIN i integracja z Remix IDE -->
+<!-- PRAWY PANEL: Monitor sieci DePIN i integracja z Sepolia -->
 <div class="dashboard">
     <div class="dash-header">
         <div>
             <div class="dash-title">DePIN & Smart Contract Monitor</div>
-            <div class="dash-sub">Integracja z kontraktem wdrożonym w Remix IDE</div>
+            <div class="dash-sub">Kontrakt wdrożony w sieci Ethereum Sepolia</div>
         </div>
-        <span class="network-pill" id="net-status">Remix / Testnet</span>
+        <span class="network-pill" id="net-status">Sepolia Testnet</span>
     </div>
 
-    <!-- Pole wklejenia adresu kontraktu z Remix IDE -->
+    <!-- Wbudowany adres Smart Kontraktu w sieci Sepolia -->
     <div class="contract-box">
-        <div class="stat-label">Adres Smart Kontraktu (skopiowany z Remix IDE):</div>
+        <div class="stat-label">Adres Smart Kontraktu MapToken (Sepolia):</div>
         <div class="contract-row">
-            <input type="text" id="contract-addr" placeholder="0xd9145CCE52D386f254917e481eB44e9943F39138" />
+            <input type="text" id="contract-addr" value="0x17c88e7dfcABEe4d7104b4d9384dCA953C2bFa13" />
             <button class="btn-connect" onclick="connectWeb3()">Połącz Web3</button>
         </div>
     </div>
@@ -447,11 +451,11 @@
     <div class="log-box" id="tx-log">
         <div class="log-header">
             <span>Transakcje kontraktu (MapToken.sol)</span>
-            <span>Status: Online</span>
+            <span>Etherscan Sepolia</span>
         </div>
         <div class="tx-item">
-            <div class="tx-hash">Tx: 0x254a9f...53295 | Blok: #6849102 ✓</div>
-            <div class="tx-meta">Nagroda: +10 IMT | Cel: Sala 104 | Węzły VPS: +340</div>
+            <div class="tx-hash">Kontrakt: 0x17c88e...bFa13 | Sieć: Sepolia ✓</div>
+            <div class="tx-meta">Gotowy do wywołania funkcji rewardForScanning()</div>
             <div class="tx-ipfs">IPFS CID: QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco</div>
         </div>
     </div>
@@ -466,7 +470,7 @@
     let userAddress = null;
     let contractInstance = null;
 
-    // Minimalny interfejs ABI kontraktu MapToken.sol z Remix IDE
+    // Interfejs ABI kontraktu MapToken.sol
     const contractABI = [
         "function rewardForScanning(address _user, string memory _roomName) public",
         "function getBalance(address _user) public view returns (uint256)"
@@ -478,32 +482,38 @@
         "305": { text: "Skręć w prawo przy windzie", dist: 24, rot: "45deg", path: "M 30 35 L 125 35 L 125 58", cx: 125, cy: 58, label: "Pokój 305" }
     };
 
-    // Połączenie przeglądarki z portfelem MetaMask i kontraktem z Remix IDE
+    // Wymuszone wywołanie okna MetaMask i przełączenie na sieć Sepolia
     async function connectWeb3() {
         const addr = document.getElementById('contract-addr').value.trim();
-        if (!addr) {
-            alert("Wklej najpierw adres kontraktu z zakładki 'Deployed Contracts' w Remix IDE!");
+        if (!window.ethereum) {
+            alert("Nie wykryto wtyczki MetaMask w przeglądarce! Otwórz stronę w Chrome/Brave z zainstalowanym MetaMask.");
             return;
         }
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                const provider = new ethers.BrowserProvider(window.ethereum);
-                const signer = await provider.getSigner();
-                userAddress = await signer.getAddress();
-                contractInstance = new ethers.Contract(addr, contractABI, signer);
 
-                document.getElementById('wallet-label').innerText = "Portfel: " + userAddress.slice(0,6) + "..." + userAddress.slice(-4);
-                document.getElementById('net-status').innerText = "Web3 Połączono ✓";
-                document.getElementById('net-status').style.color = "#3fb950";
-                alert("Połączono z portfelem i kontraktem MapToken!");
-            } catch (err) {
-                alert("Błąd połączenia z MetaMask: " + err.message);
+        try {
+            // Wymuszenie okna wyboru konta w MetaMask
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            userAddress = accounts[0];
+
+            // Sprawdzenie lub przełączenie na sieć Sepolia (Chain ID: 0xaa36a7)
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0xaa36a7' }],
+                });
+            } catch (switchError) {
+                console.log("Sieć Sepolia już wybrana lub wymaga ręcznego przełączenia.");
             }
-        } else {
-            // Jeśli brak wtyczki MetaMask, aktywuje tryb powiązany z adresem z Remix
-            document.getElementById('wallet-label').innerText = "Kontrakt: " + addr.slice(0,6) + "..." + addr.slice(-4);
-            document.getElementById('net-status').innerText = "Remix Powiązany ✓";
+
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            contractInstance = new ethers.Contract(addr, contractABI, signer);
+
+            document.getElementById('wallet-label').innerText = "Portfel: " + userAddress.slice(0,6) + "..." + userAddress.slice(-4) + " ✓";
+            document.getElementById('net-status').innerText = "Sepolia Połączono ✓";
             document.getElementById('net-status').style.color = "#3fb950";
+        } catch (err) {
+            alert("Błąd połączenia z MetaMask: " + err.message);
         }
     }
 
@@ -555,48 +565,54 @@
         document.getElementById('scan-fill').style.width = scanProgress + "%";
     }
 
-    // Wywołanie funkcji Smart Kontraktu po zakończeniu trasy
+    // Wysłanie prawdziwej transakcji do kontraktu MapToken w sieci Sepolia
     async function claimReward() {
         const select = document.getElementById('dest-select');
         const roomName = routes[select.value].label;
+        const btn = document.getElementById('claim-btn');
 
-        // Jeśli podłączono prawdziwy portfel MetaMask + kontrakt, wysyła realną transakcję
-        if (contractInstance && userAddress) {
-            try {
-                const tx = await contractInstance.rewardForScanning(userAddress, roomName);
-                await tx.wait();
-                addLogEntry(tx.hash.slice(0, 10) + "..." + tx.hash.slice(-5), roomName);
-            } catch (err) {
-                alert("Transakcja anulowana lub błąd sieci: " + err.message);
-                return;
-            }
-        } else {
-            // Tryb symulacji bez MetaMask
-            const randomHash = "0x" + Math.random().toString(16).substring(2, 8) + "..." + Math.random().toString(16).substring(2, 7);
-            addLogEntry(randomHash, roomName);
+        // Automatyczne połączenie, jeśli użytkownik jeszcze nie kliknął Połącz Web3
+        if (!contractInstance || !userAddress) {
+            await connectWeb3();
+            if (!contractInstance) return;
         }
 
-        tokens += 10;
-        mapped += 1;
-        totalPaid += 10;
-        scanProgress = 100;
-        remainingDist = 0;
-        updateProgressUI();
+        try {
+            btn.disabled = true;
+            btn.innerText = "Potwierdź transakcję w MetaMask...";
+            const tx = await contractInstance.rewardForScanning(userAddress, roomName);
+            btn.innerText = "Zapisywanie w bloku Sepolia...";
+            const receipt = await tx.wait();
 
-        document.getElementById('dist-tag').innerText = "Cel osiągnięty! Dane wysłane.";
-        document.getElementById('balance').innerText = tokens + " IMT";
-        document.getElementById('mapped-count').innerText = mapped + " / 40";
-        document.getElementById('total-paid').innerText = totalPaid + " IMT";
-        document.getElementById('points').innerText = (1420 + tokens * 45).toLocaleString();
+            addLogEntry(tx.hash, receipt.blockNumber, roomName);
+
+            tokens += 10;
+            mapped += 1;
+            totalPaid += 10;
+            scanProgress = 100;
+            remainingDist = 0;
+            updateProgressUI();
+
+            document.getElementById('dist-tag').innerText = "Cel osiągnięty! Zapisano w Blockchain.";
+            document.getElementById('balance').innerText = tokens + " IMT";
+            document.getElementById('mapped-count').innerText = mapped + " / 40";
+            document.getElementById('total-paid').innerText = totalPaid + " IMT";
+            document.getElementById('points').innerText = (1420 + tokens * 45).toLocaleString();
+        } catch (err) {
+            alert("Transakcja anulowana lub błąd: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Zakończ trasę i odbierz tokeny (+10 IMT)";
+        }
     }
 
-    function addLogEntry(txHash, roomName) {
+    function addLogEntry(fullHash, blockNum, roomName) {
+        const shortHash = fullHash.slice(0, 10) + "..." + fullHash.slice(-6);
         const randomIpfs = "Qm" + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        const blockNum = 6849103 + mapped;
         const logBox = document.getElementById('tx-log');
         const newTx = document.createElement('div');
         newTx.className = 'tx-item';
-        newTx.innerHTML = `<div class="tx-hash">Tx: ${txHash} | Blok: #${blockNum} ✓</div>
+        newTx.innerHTML = `<div class="tx-hash"><a href="https://sepolia.etherscan.io/tx/${fullHash}" target="_blank">Tx: ${shortHash} ↗</a> | Blok: #${blockNum} ✓</div>
                            <div class="tx-meta">Nagroda: +10 IMT | Cel: ${roomName} | Węzły VPS: +450</div>
                            <div class="tx-ipfs">IPFS CID: ${randomIpfs}</div>`;
         logBox.insertBefore(newTx, logBox.children[1]);
